@@ -38,7 +38,7 @@ const waterSourceSchema = z.object({
 
 export default function Onboarding() {
   const [, setLocation] = useLocation();
-  const { setUser, setFarm, language } = useUser();
+  const { setUser, setFarm, setProgress, language } = useUser();
   const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<any>({});
@@ -61,6 +61,11 @@ export default function Onboarding() {
       const farmResponse = await apiRequest('POST', '/api/farms', farmData);
       const farm = await farmResponse.json();
       setFarm(farm);
+      
+      // Fetch user progress (created automatically during user creation)
+      const progressResponse = await apiRequest('GET', `/api/user-progress/${user.id}`);
+      const progress = await progressResponse.json();
+      setProgress(progress);
       
       toast({
         title: "Welcome to KrishiGrow! 🌱",
