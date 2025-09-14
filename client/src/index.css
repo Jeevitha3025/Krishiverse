@@ -1,0 +1,147 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Krishi-specific color palette */
+  --background: hsl(45, 20%, 98%);
+  --foreground: hsl(120, 15%, 15%);
+  --card: hsl(0, 0%, 100%);
+  --card-foreground: hsl(120, 15%, 15%);
+  --popover: hsl(0, 0%, 100%);
+  --popover-foreground: hsl(120, 15%, 15%);
+  --primary: hsl(95, 60%, 25%);
+  --primary-foreground: hsl(0, 0%, 100%);
+  --secondary: hsl(25, 65%, 35%);
+  --secondary-foreground: hsl(0, 0%, 100%);
+  --muted: hsl(45, 15%, 95%);
+  --muted-foreground: hsl(120, 10%, 45%);
+  --accent: hsl(45, 85%, 65%);
+  --accent-foreground: hsl(120, 15%, 15%);
+  --success: hsl(100, 60%, 45%);
+  --success-foreground: hsl(0, 0%, 100%);
+  --destructive: hsl(0, 84%, 60%);
+  --destructive-foreground: hsl(0, 0%, 100%);
+  --border: hsl(45, 25%, 88%);
+  --input: hsl(45, 25%, 88%);
+  --ring: hsl(95, 60%, 25%);
+  --chart-1: hsl(95, 60%, 25%);
+  --chart-2: hsl(100, 60%, 45%);
+  --chart-3: hsl(45, 85%, 65%);
+  --chart-4: hsl(25, 65%, 35%);
+  --chart-5: hsl(120, 15%, 15%);
+  --sidebar: hsl(0, 0%, 100%);
+  --sidebar-foreground: hsl(120, 15%, 15%);
+  --sidebar-primary: hsl(95, 60%, 25%);
+  --sidebar-primary-foreground: hsl(0, 0%, 100%);
+  --sidebar-accent: hsl(45, 15%, 95%);
+  --sidebar-accent-foreground: hsl(95, 60%, 25%);
+  --sidebar-border: hsl(45, 25%, 88%);
+  --sidebar-ring: hsl(95, 60%, 25%);
+  --font-sans: 'Inter', sans-serif;
+  --font-serif: Georgia, serif;
+  --font-mono: Menlo, monospace;
+  --radius: 0.75rem;
+  --shadow-2xs: 0px 2px 0px 0px hsl(95, 60%, 25%, 0.00);
+  --shadow-xs: 0px 2px 0px 0px hsl(95, 60%, 25%, 0.00);
+  --shadow-sm: 0px 2px 0px 0px hsl(95, 60%, 25%, 0.00), 0px 1px 2px -1px hsl(95, 60%, 25%, 0.00);
+  --shadow: 0px 2px 0px 0px hsl(95, 60%, 25%, 0.00), 0px 1px 2px -1px hsl(95, 60%, 25%, 0.00);
+  --shadow-md: 0px 2px 0px 0px hsl(95, 60%, 25%, 0.00), 0px 2px 4px -1px hsl(95, 60%, 25%, 0.00);
+  --shadow-lg: 0px 2px 0px 0px hsl(95, 60%, 25%, 0.00), 0px 4px 6px -1px hsl(95, 60%, 25%, 0.00);
+  --shadow-xl: 0px 2px 0px 0px hsl(95, 60%, 25%, 0.00), 0px 8px 10px -1px hsl(95, 60%, 25%, 0.00);
+  --shadow-2xl: 0px 2px 0px 0px hsl(95, 60%, 25%, 0.00);
+  --tracking-normal: 0em;
+  --spacing: 0.25rem;
+}
+
+.dark {
+  --background: hsl(120, 15%, 10%);
+  --foreground: hsl(45, 20%, 95%);
+  --card: hsl(120, 15%, 15%);
+  --card-foreground: hsl(45, 20%, 95%);
+  --popover: hsl(120, 15%, 10%);
+  --popover-foreground: hsl(45, 20%, 95%);
+  --primary: hsl(95, 60%, 35%);
+  --primary-foreground: hsl(0, 0%, 100%);
+  --secondary: hsl(25, 65%, 45%);
+  --secondary-foreground: hsl(0, 0%, 100%);
+  --muted: hsl(120, 15%, 20%);
+  --muted-foreground: hsl(45, 15%, 60%);
+  --accent: hsl(45, 85%, 55%);
+  --accent-foreground: hsl(120, 15%, 15%);
+  --success: hsl(100, 60%, 50%);
+  --success-foreground: hsl(0, 0%, 100%);
+  --destructive: hsl(0, 84%, 60%);
+  --destructive-foreground: hsl(0, 0%, 100%);
+  --border: hsl(120, 15%, 25%);
+  --input: hsl(120, 15%, 25%);
+  --ring: hsl(95, 60%, 35%);
+  --sidebar: hsl(120, 15%, 15%);
+  --sidebar-foreground: hsl(45, 20%, 95%);
+  --sidebar-primary: hsl(95, 60%, 35%);
+  --sidebar-primary-foreground: hsl(0, 0%, 100%);
+  --sidebar-accent: hsl(120, 15%, 20%);
+  --sidebar-accent-foreground: hsl(95, 60%, 35%);
+  --sidebar-border: hsl(120, 15%, 25%);
+  --sidebar-ring: hsl(95, 60%, 35%);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+
+/* Custom animations and effects */
+.farm-gradient {
+  background: linear-gradient(135deg, hsl(85, 50%, 85%) 0%, hsl(100, 40%, 75%) 50%, hsl(120, 30%, 65%) 100%);
+}
+
+.quest-card:hover {
+  transform: translateY(-2px);
+  transition: transform 0.2s ease;
+}
+
+.progress-fill {
+  transition: width 0.3s ease;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { 
+    opacity: 1; 
+    transform: scale(1);
+  }
+  50% { 
+    opacity: 0.7; 
+    transform: scale(1.05);
+  }
+}
+
+.pulse-glow {
+  animation: pulse-glow 2s infinite;
+}
+
+/* Mobile-first responsive utilities */
+.mobile-bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+}
+
+.mobile-content {
+  padding-bottom: 5rem; /* Space for bottom nav */
+}
+
+@media (min-width: 768px) {
+  .mobile-content {
+    padding-bottom: 0;
+    margin-left: 16rem; /* Space for sidebar */
+  }
+}
