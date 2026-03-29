@@ -34,6 +34,12 @@ export default function Dashboard() {
     );
   }
 
+  // --- SAFETY NETS (Prevents crashes if data is missing) ---
+  const safeName = user?.name || "Farmer";
+  const safeCoins = progress?.totalCoins ?? progress?.coins ?? 0;
+  const safeLevel = progress?.level ?? 1;
+  const safeScore = progress?.sustainabilityScore ?? 0;
+
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return language === 'hi' ? 'सुप्रभात' : 'Good morning';
@@ -60,14 +66,14 @@ export default function Dashboard() {
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-accent rounded-full flex items-center justify-center" data-testid="user-avatar">
               <span className="font-bold text-accent-foreground">
-                {user.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                {safeName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
               </span>
             </div>
             <div>
               <p className="text-sm opacity-90" data-testid="greeting">
                 {getGreeting()},
               </p>
-              <p className="font-semibold" data-testid="user-name">{user.name}</p>
+              <p className="font-semibold" data-testid="user-name">{safeName}</p>
             </div>
           </div>
           <div className="flex items-center space-x-3">
@@ -82,17 +88,17 @@ export default function Dashboard() {
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-primary-foreground/10 rounded-lg p-3 text-center" data-testid="coins-stat">
             <Coins className="text-accent mx-auto mb-1 h-5 w-5" />
-            <p className="text-2xl font-bold">{progress.totalCoins.toLocaleString()}</p>
+            <p className="text-2xl font-bold">{safeCoins.toLocaleString()}</p>
             <p className="text-xs opacity-90">{t("coins", language as LanguageCode)}</p>
           </div>
           <div className="bg-primary-foreground/10 rounded-lg p-3 text-center" data-testid="level-stat">
             <Star className="text-accent mx-auto mb-1 h-5 w-5" />
-            <p className="text-2xl font-bold">{t("level", language as LanguageCode)} {progress.level}</p>
+            <p className="text-2xl font-bold">{t("level", language as LanguageCode)} {safeLevel}</p>
             <p className="text-xs opacity-90">Eco Farmer</p>
           </div>
           <div className="bg-primary-foreground/10 rounded-lg p-3 text-center" data-testid="sustainability-stat">
             <Sprout className="text-success mx-auto mb-1 h-5 w-5" />
-            <p className="text-2xl font-bold">{progress.sustainabilityScore}%</p>
+            <p className="text-2xl font-bold">{safeScore}%</p>
             <p className="text-xs opacity-90">{t("sustainability", language as LanguageCode)}</p>
           </div>
         </div>

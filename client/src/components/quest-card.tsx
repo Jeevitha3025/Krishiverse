@@ -5,12 +5,14 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { CheckCircle, Circle, Coins, Star, Award, Users } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { useUser } from '@/contexts/user-context'; // 👈 Get our Brain
+import { db } from '../firebaseConfig'; // 👈 Import database
+import { doc, setDoc, updateDoc } from 'firebase/firestore'; // 👈 Firestore tools
 
 interface QuestCardProps {
   quest: Quest;
-  userQuest?: UserQuest;
+  userQuest?: UserQuest | any;
   userId: string;
   isTeamQuest?: boolean;
 }
@@ -18,16 +20,20 @@ interface QuestCardProps {
 export default function QuestCard({ quest, userQuest, userId, isTeamQuest }: QuestCardProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { progress, setProgress } = useUser(); // Grab the current coins/XP to update them
 
+  // 1. START QUEST: Saves to Firestore
   const startQuestMutation = useMutation({
-    mutationFn: () => apiRequest('POST', '/api/user-quests', {
-      userId,
-      questId: quest.id,
-      status: 'in_progress',
-      progress: new Array(quest.steps.length).fill(false)
-    }),
+    mutationFn: async () => {
+      const questRef = doc(db, `users/${userId}/activeQuests`, quest.id.toString());
+      await setDoc(questRef, {
+        questId: quest.id,
+        status: 'in_progress',
+        progress: new Array(quest.steps.length).fill(false)
+      });
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/user-quests', userId] });
+      queryClient.invalidateQueries({ queryKey: ['user-quests', userId] });
       toast({
         title: "Quest Started!",
         description: `You've started the "${quest.title}" quest.`,
@@ -35,11 +41,53 @@ export default function QuestCard({ quest, userQuest, userId, isTeamQuest }: Que
     }
   });
 
-  const completeQuestMutation = useMutation({
-    mutationFn: () => apiRequest('POST', `/api/user-quests/${userQuest?.id}/complete`, {}),
+  // 2. TOGGLE STEP: Lets users check off individual tasks!
+  const toggleStepMutation = useMutation({
+    mutationFn: async (stepIndex: number) => {
+      if (!userQuest || userQuest.status !== 'in_progress') return;
+      
+      const newProgress = [...(userQuest.progress || [])];
+      newProgress[stepIndex] = !newProgress[stepIndex]; // Flip true/false
+      
+      const questRef = doc(db, `users/${userId}/activeQuests`, quest.id.toString());
+      await updateDoc(questRef, { progress: newProgress });
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/user-quests', userId] });
-      queryClient.invalidateQueries({ queryKey: ['/api/user-progress', userId] });
+      queryClient.invalidateQueries({ queryKey: ['user-quests', userId] });
+    }
+  });
+
+  // 3. COMPLETE QUEST: Rewards XP and Coins!
+  const completeQuestMutation = useMutation({
+    mutationFn: async () => {
+      // Mark quest as completed
+      const questRef = doc(db, `users/${userId}/activeQuests`, quest.id.toString());
+      await updateDoc(questRef, { status: 'completed' });
+
+      // Calculate New Rewards
+      if (progress) {
+        const newXp = (progress.experience || 0) + quest.xpReward;
+        const newTotalCoins = (progress.totalCoins || 0) + quest.coinReward;
+        const newLevel = Math.floor(newXp / 100) + 1; // Level up every 100 XP!
+
+        const updatedProgress = {
+          ...progress,
+          experience: newXp,
+          coins: newTotalCoins,
+          totalCoins: newTotalCoins,
+          level: newLevel,
+          completedQuests: [...(progress.completedQuests || []), quest.id]
+        };
+
+        // Save new stats to Firestore
+        await setDoc(doc(db, "progress", userId), updatedProgress, { merge: true });
+        
+        // Update the UI instantly!
+        setProgress(updatedProgress as any);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-quests', userId] });
       toast({
         title: "Quest Completed! 🎉",
         description: `You earned ${quest.coinReward} coins and ${quest.xpReward} XP!`,
@@ -58,7 +106,7 @@ export default function QuestCard({ quest, userQuest, userId, isTeamQuest }: Que
       case 'easy': return 'bg-success';
       case 'medium': return 'bg-accent';
       case 'high': return 'bg-secondary';
-      default: return 'bg-muted';
+      default: return 'bg-success'; // default fallback
     }
   };
 
@@ -71,7 +119,8 @@ export default function QuestCard({ quest, userQuest, userId, isTeamQuest }: Que
     return <Badge className="bg-muted text-muted-foreground">Not Started</Badge>;
   };
 
-  const canComplete = userQuest?.status === 'in_progress' && getProgressPercentage() >= 75;
+  // Allow completion if ALL steps are checked!
+  const canComplete = userQuest?.status === 'in_progress' && getProgressPercentage() === 100;
 
   return (
     <Card 
@@ -91,7 +140,7 @@ export default function QuestCard({ quest, userQuest, userId, isTeamQuest }: Que
             <div>
               <h3 className="font-semibold" data-testid={`quest-title-${quest.id}`}>{quest.title}</h3>
               <p className="text-sm text-muted-foreground">
-                {quest.category} • {quest.difficulty}
+                {quest.category}
                 {isTeamQuest && " • Team Quest"}
               </p>
             </div>
@@ -106,14 +155,19 @@ export default function QuestCard({ quest, userQuest, userId, isTeamQuest }: Que
         {userQuest?.status === 'in_progress' && (
           <>
             <div className="space-y-2 mb-4">
-              {quest.steps.map((step, index) => {
+              {quest.steps.map((step: string, index: number) => {
                 const isCompleted = userQuest.progress?.[index] || false;
                 return (
-                  <div key={index} className="flex items-center text-sm" data-testid={`quest-step-${index}`}>
+                  <div 
+                    key={index} 
+                    className="flex items-center text-sm cursor-pointer hover:bg-slate-50 p-1 rounded transition-colors"
+                    onClick={() => toggleStepMutation.mutate(index)} // 👈 Makes steps clickable!
+                    data-testid={`quest-step-${index}`}
+                  >
                     {isCompleted ? (
-                      <CheckCircle className="text-success mr-2 h-4 w-4" />
+                      <CheckCircle className="text-success mr-2 h-5 w-5" />
                     ) : (
-                      <Circle className="text-muted-foreground mr-2 h-4 w-4" />
+                      <Circle className="text-muted-foreground mr-2 h-5 w-5 hover:text-green-500" />
                     )}
                     <span className={isCompleted ? "line-through text-muted-foreground" : ""}>
                       {step}
@@ -123,26 +177,20 @@ export default function QuestCard({ quest, userQuest, userId, isTeamQuest }: Que
               })}
             </div>
             
-            <Progress value={getProgressPercentage()} className="mb-4" />
+            <Progress value={getProgressPercentage()} className="mb-4 h-2 bg-slate-200" />
           </>
         )}
         
         <div className="flex justify-between items-center">
-          <div className="flex space-x-4 text-sm">
-            <span className="flex items-center" data-testid={`quest-coin-reward-${quest.id}`}>
-              <Coins className="text-accent mr-1 h-4 w-4" />
-              {quest.coinReward} coins
+          <div className="flex space-x-4 text-sm font-medium">
+            <span className="flex items-center text-orange-600" data-testid={`quest-coin-reward-${quest.id}`}>
+              <Coins className="mr-1 h-4 w-4" />
+              {quest.coinReward}
             </span>
-            <span className="flex items-center" data-testid={`quest-xp-reward-${quest.id}`}>
-              <Star className="text-accent mr-1 h-4 w-4" />
+            <span className="flex items-center text-blue-600" data-testid={`quest-xp-reward-${quest.id}`}>
+              <Star className="mr-1 h-4 w-4" />
               {quest.xpReward} XP
             </span>
-            {quest.badgeReward && (
-              <span className="flex items-center" data-testid={`quest-badge-reward-${quest.id}`}>
-                <Award className="text-secondary mr-1 h-4 w-4" />
-                {quest.badgeReward}
-              </span>
-            )}
           </div>
           
           <div>
@@ -150,26 +198,26 @@ export default function QuestCard({ quest, userQuest, userId, isTeamQuest }: Que
               <Button
                 onClick={() => startQuestMutation.mutate()}
                 disabled={startQuestMutation.isPending}
-                className="bg-muted text-foreground hover:bg-muted/80"
+                className="bg-green-700 text-white hover:bg-green-800"
                 data-testid={`button-start-quest-${quest.id}`}
               >
                 Start Quest
               </Button>
             ) : userQuest.status === 'completed' ? (
-              <Button disabled className="bg-success text-success-foreground">
+              <Button disabled className="bg-slate-100 text-slate-500 border-none">
                 Completed ✓
               </Button>
             ) : canComplete ? (
               <Button
                 onClick={() => completeQuestMutation.mutate()}
                 disabled={completeQuestMutation.isPending}
-                className="bg-primary text-primary-foreground"
+                className="bg-green-600 text-white hover:bg-green-700 shadow-md animate-pulse"
                 data-testid={`button-complete-quest-${quest.id}`}
               >
-                I Did It!
+                Claim Reward!
               </Button>
             ) : (
-              <Button disabled className="bg-muted text-muted-foreground">
+              <Button disabled className="bg-slate-100 text-slate-500">
                 In Progress...
               </Button>
             )}

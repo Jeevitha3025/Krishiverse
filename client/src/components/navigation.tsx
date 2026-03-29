@@ -74,13 +74,13 @@ export default function Navigation() {
               <Sprout className="text-primary-foreground h-6 w-6" />
             </div>
             <div>
-              <h1 className="font-bold text-xl text-primary">KrishiGrow</h1>
+              <h1 className="font-bold text-xl text-primary">Krishi-Verse</h1>
               <p className="text-xs text-muted-foreground">{t("sustainableFarming", language as LanguageCode)}</p>
             </div>
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => handleSpeak("KrishiGrow - Sustainable Farming Platform")}
+              onClick={() => handleSpeak("Krishi-Verse - Sustainable Farming Platform")}
               className="ml-auto"
               data-testid="speak-title"
             >

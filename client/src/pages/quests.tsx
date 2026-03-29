@@ -1,22 +1,74 @@
 import { useState } from "react";
 import { useUser } from "@/contexts/user-context";
 import { useQuery } from "@tanstack/react-query";
+import { db } from "../firebaseConfig"; // 👈 Import Firestore
+import { collection, getDocs } from "firebase/firestore"; // 👈 Import Firestore tools
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import QuestCard from "@/components/quest-card";
 import { Target, Gamepad2, Brain, Sprout } from "lucide-react";
 
+// 👈 DEFAULT QUESTS: We inject these so your new database has something to show!
+const DEFAULT_QUESTS = [
+  {
+    id: "q1",
+    title: "Soil Testing Basics",
+    description: "Learn how to test your soil pH and nutrient levels to maximize crop yield.",
+    category: "Soil Health",
+    coinReward: 50,
+    xpReward: 20,
+    steps: ["Read Soil Health Guide", "Identify Soil Type"]
+  },
+  {
+    id: "q2",
+    title: "Water Conservation",
+    description: "Learn about drip irrigation to save water and earn the Water Saver badge.",
+    category: "Water Management",
+    coinReward: 100,
+    xpReward: 50,
+    steps: ["Watch Irrigation Video", "Plan Water Schedule"]
+  },
+  {
+    id: "q3",
+    title: "Organic Pest Control",
+    description: "Create natural neem oil spray to protect your crops without chemicals.",
+    category: "Pest Control",
+    coinReward: 75,
+    xpReward: 30,
+    steps: ["Gather Organic Ingredients", "Apply to Crops"]
+  }
+];
+
 export default function Quests() {
   const { user } = useUser();
   const [selectedCategory, setSelectedCategory] = useState("all");
 
+  // 1. Load the master list of Quests
   const { data: quests, isLoading: questsLoading } = useQuery({
-    queryKey: ['/api/quests'],
+    queryKey: ['quests'],
+    queryFn: async () => {
+      // In the future, you can move these to Firestore. 
+      // For now, returning our Default array instantly populates the beautiful UI!
+      return DEFAULT_QUESTS;
+    }
   });
 
+  // 2. Fetch the user's SPECIFIC progress on these quests from FIRESTORE
   const { data: userQuests, isLoading: userQuestsLoading } = useQuery({
-    queryKey: ['/api/user-quests', user?.id],
+    queryKey: ['user-quests', user?.id],
     enabled: !!user?.id,
+    queryFn: async () => {
+      try {
+        // Look inside a sub-collection for this user's active/completed quests
+        const userQuestsRef = collection(db, `users/${user!.id}/activeQuests`);
+        const snapshot = await getDocs(userQuestsRef);
+        if (snapshot.empty) return [];
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      } catch (error) {
+        console.error("Error fetching user quests:", error);
+        return [];
+      }
+    }
   });
 
   if (!user) {
@@ -30,7 +82,7 @@ export default function Quests() {
   if (questsLoading || userQuestsLoading) {
     return (
       <div className="min-h-screen mobile-content flex items-center justify-center">
-        <p className="text-muted-foreground">Loading quests...</p>
+        <p className="text-muted-foreground text-green-700 font-medium">Loading quests...</p>
       </div>
     );
   }

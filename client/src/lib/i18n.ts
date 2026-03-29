@@ -1,12 +1,12 @@
 export const translations = {
   en: {
-    welcome: "Welcome to KrishiGrow",
+    welcome: "Welcome to Krishi-Verse",
     getStarted: "Get Started",
     alreadyHaveAccount: "I Already Have Account",
-    dashboard: "Dashboard",
-    quests: "Quests",
-    community: "Community",
-    market: "Market",
+    dashboard: "KrishiPlay",
+    quests: "KrishiKnow",
+    community: "KrishiGrow",
+    market: "KrishiMart",
     profile: "Profile",
     sustainableFarming: "Sustainable Farming",
     virtualFarm: "My Virtual Farm",

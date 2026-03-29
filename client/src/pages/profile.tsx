@@ -46,6 +46,21 @@ export default function Profile() {
     );
   }
 
+  // --- SAFETY NETS (Prevents crashes if data is missing) ---
+  const safeName = user?.name || "Farmer";
+  const safeLevel = progress?.level || 1;
+  const safeCoins = progress?.totalCoins ?? progress?.coins ?? 0;
+  const safeQuests = progress?.completedQuests?.length || 0;
+  const safeBadges = progress?.badges || [];
+  const safeVillage = farm?.village || "Unknown Village";
+  const safeDistrict = farm?.district || "Unknown District";
+  const safeState = farm?.state || "Unknown State";
+  const safeFarmSize = farm?.farmSize || "Not Specified";
+  const safeCrops = farm?.primaryCrops || ["Mixed Crop"];
+  const safeSoil = farm?.soilType || "Not Specified";
+  const safeWater = farm?.waterSource || "Not Specified";
+
+
   const handleLogout = () => {
     logout();
     setLocation("/");
@@ -85,28 +100,28 @@ export default function Profile() {
           <CardContent className="p-6 text-center">
             <div className="w-24 h-24 bg-accent rounded-full flex items-center justify-center mx-auto mb-4" data-testid="profile-avatar">
               <span className="text-3xl font-bold text-accent-foreground">
-                {getInitials(user.name)}
+                {getInitials(safeName)}
               </span>
             </div>
-            <h2 className="text-2xl font-bold" data-testid="profile-name">{user.name}</h2>
-            <p className="text-muted-foreground">Sustainable Farmer • Level {progress.level}</p>
+            <h2 className="text-2xl font-bold" data-testid="profile-name">{safeName}</h2>
+            <p className="text-muted-foreground">Sustainable Farmer • Level {safeLevel}</p>
             <div className="flex justify-center space-x-4 mt-4">
               <div className="text-center" data-testid="profile-coins">
-                <p className="text-2xl font-bold text-accent">{progress.totalCoins.toLocaleString()}</p>
+                <p className="text-2xl font-bold text-accent">{safeCoins.toLocaleString()}</p>
                 <p className="text-sm text-muted-foreground">Coins</p>
               </div>
               <div className="text-center" data-testid="profile-quests">
-                <p className="text-2xl font-bold text-success">{progress.completedQuests}</p>
+                <p className="text-2xl font-bold text-success">{safeQuests}</p>
                 <p className="text-sm text-muted-foreground">Quests Done</p>
               </div>
               <div className="text-center" data-testid="profile-badges">
-                <p className="text-2xl font-bold text-secondary">{progress.badges.length}</p>
+                <p className="text-2xl font-bold text-secondary">{safeBadges.length}</p>
                 <p className="text-sm text-muted-foreground">Badges</p>
               </div>
             </div>
             <Button
               variant="ghost"
-              onClick={() => handleSpeak(`${user.name}, Level ${progress.level} farmer with ${progress.totalCoins} coins and ${progress.badges.length} badges`)}
+              onClick={() => handleSpeak(`${safeName}, Level ${safeLevel} farmer with ${safeCoins} coins and ${safeBadges.length} badges`)}
               className="mt-2"
               data-testid="button-speak-stats"
             >
@@ -127,24 +142,24 @@ export default function Profile() {
             <div className="flex justify-between">
               <span className="text-muted-foreground">Location</span>
               <span data-testid="farm-location">
-                {farm.village}, {farm.district}, {farm.state}
+                {safeVillage}, {safeDistrict}, {safeState}
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Farm Size</span>
-              <span data-testid="farm-size">{farm.farmSize}</span>
+              <span data-testid="farm-size">{safeFarmSize}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Primary Crops</span>
-              <span data-testid="farm-crops">{farm.primaryCrops.join(", ")}</span>
+              <span data-testid="farm-crops">{safeCrops.join(", ")}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Soil Type</span>
-              <span data-testid="farm-soil">{farm.soilType}</span>
+              <span data-testid="farm-soil">{safeSoil}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Water Source</span>
-              <span data-testid="farm-water">{farm.waterSource}</span>
+              <span data-testid="farm-water">{safeWater}</span>
             </div>
           </CardContent>
         </Card>
@@ -161,7 +176,7 @@ export default function Profile() {
             <div className="grid grid-cols-3 gap-3">
               {badgeConfig.map((badge) => {
                 const Icon = badge.icon;
-                const hasEarned = progress.badges.includes(badge.key);
+                const hasEarned = safeBadges.includes(badge.key);
                 return (
                   <div
                     key={badge.key}

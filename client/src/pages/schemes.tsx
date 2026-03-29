@@ -1,13 +1,42 @@
 import { useUser } from "@/contexts/user-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { db } from "../firebaseConfig"; // 👈 Import Firestore
+import { collection, doc, setDoc, getDocs } from "firebase/firestore"; // 👈 Firestore tools
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { FileText, Star, CheckCircle, Circle, Clock, Phone, MessageCircle, Tag, Coins } from "lucide-react";
 import { useState } from "react";
-import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+
+// --- DEFAULT SCHEMES (Real-world Indian Schemes) ---
+const DEFAULT_SCHEMES = [
+  {
+    id: "s1",
+    name: "PM-KISAN Samman Nidhi",
+    category: "Financial Support",
+    description: "Direct income support of ₹6,000 per year for farmer families.",
+    benefits: "₹2,000 paid in 3 equal installments directly to bank account.",
+    applicationSteps: ["Verify Aadhaar", "Link Bank Account", "Submit Land Records"]
+  },
+  {
+    id: "s2",
+    name: "Soil Health Card Scheme",
+    category: "Farm Management",
+    description: "Get a detailed report on your soil's nutrient status and fertilizer recommendations.",
+    benefits: "Free soil testing and personalized crop advice.",
+    applicationSteps: ["Locate Nearest Testing Center", "Submit Soil Sample", "Receive Digital Card"]
+  },
+  {
+    id: "s3",
+    name: "Pradhan Mantri Krishi Sinchayee Yojana (PMKSY)",
+    category: "Water Management",
+    description: "Subsidy for installing micro-irrigation systems like drip and sprinkler.",
+    benefits: "Up to 55% subsidy for small/marginal farmers.",
+    applicationSteps: ["Get Quotation", "Submit Application", "Field Inspection", "Installation"]
+  }
+];
 
 export default function Schemes() {
   const { user } = useUser();
@@ -15,28 +44,45 @@ export default function Schemes() {
   const queryClient = useQueryClient();
   const [selectedTab, setSelectedTab] = useState("available");
 
+  // 1. Fetch Schemes
   const { data: schemes, isLoading: schemesLoading } = useQuery({
-    queryKey: ['/api/schemes'],
+    queryKey: ['schemes'],
+    queryFn: async () => DEFAULT_SCHEMES
   });
 
+  // 2. Fetch User's Applied Schemes from FIRESTORE
   const { data: userSchemes, isLoading: userSchemesLoading } = useQuery({
-    queryKey: ['/api/user-schemes', user?.id],
+    queryKey: ['user-schemes', user?.id],
     enabled: !!user?.id,
+    queryFn: async () => {
+      try {
+        const schemesRef = collection(db, `users/${user!.id}/appliedSchemes`);
+        const snapshot = await getDocs(schemesRef);
+        if (snapshot.empty) return [];
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      } catch (error) {
+        console.error("Error fetching user schemes:", error);
+        return [];
+      }
+    }
   });
 
+  // 3. START APPLICATION (Save to Firestore)
   const applyForSchemeMutation = useMutation({
-    mutationFn: (schemeId: string) => apiRequest('POST', '/api/user-schemes', {
-      userId: user?.id,
-      schemeId,
-      status: 'in_progress',
-      applicationData: {},
-      appliedAt: new Date()
-    }),
+    mutationFn: async (schemeId: string) => {
+      const schemeRef = doc(db, `users/${user!.id}/appliedSchemes`, schemeId);
+      await setDoc(schemeRef, {
+        schemeId,
+        status: 'in_progress',
+        progress: 25, // Start at 25% complete
+        appliedAt: new Date().toISOString()
+      });
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/user-schemes', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['user-schemes', user?.id] });
       toast({
         title: "Application Started!",
-        description: "You've started the application process for this scheme.",
+        description: "You've started the application process. Check the 'In Progress' tab.",
       });
     }
   });
@@ -52,7 +98,7 @@ export default function Schemes() {
   if (schemesLoading || userSchemesLoading) {
     return (
       <div className="min-h-screen mobile-content flex items-center justify-center">
-        <p className="text-muted-foreground">Loading schemes...</p>
+        <p className="text-muted-foreground text-green-700 font-medium">Loading schemes...</p>
       </div>
     );
   }
@@ -86,35 +132,31 @@ export default function Schemes() {
     });
   };
 
-  const getSchemeProgress = (scheme: any, userScheme: any) => {
+  const getSchemeProgress = (userScheme: any) => {
     if (!userScheme || userScheme.status !== 'in_progress') return 0;
-    // Simple progress calculation based on steps completed
-    return Math.floor(Math.random() * 80) + 20; // Placeholder calculation
+    return userScheme.progress || 25; 
   };
 
-  const getStatusBadge = (scheme: any, userScheme: any) => {
+  const getStatusBadge = (userScheme: any) => {
     if (!userScheme) {
-      return <Badge className="bg-primary/10 text-primary">New</Badge>;
+      return <Badge className="bg-blue-100 text-blue-700 border-none">New</Badge>;
     }
     
     switch (userScheme.status) {
       case 'in_progress':
-        const progress = getSchemeProgress(scheme, userScheme);
-        return <Badge className="bg-accent/10 text-accent">{progress}% Complete</Badge>;
+        return <Badge className="bg-orange-100 text-orange-700 border-none">{userScheme.progress}% Complete</Badge>;
       case 'approved':
-        return <Badge className="bg-success text-success-foreground">Approved</Badge>;
-      case 'rejected':
-        return <Badge className="bg-destructive text-destructive-foreground">Rejected</Badge>;
+        return <Badge className="bg-green-100 text-green-700 border-none">Approved</Badge>;
       default:
-        return <Badge className="bg-muted text-muted-foreground">Not Started</Badge>;
+        return <Badge className="bg-slate-100 text-slate-500 border-none">Not Started</Badge>;
     }
   };
 
   const filteredSchemes = getFilteredSchemes();
 
   return (
-    <div className="min-h-screen mobile-content" data-testid="schemes-screen">
-      <div className="bg-primary text-primary-foreground p-4">
+    <div className="min-h-screen mobile-content bg-slate-50" data-testid="schemes-screen">
+      <div className="bg-green-800 text-white p-4 shadow-md">
         <h1 className="text-xl font-bold flex items-center">
           <FileText className="mr-3 h-6 w-6" />
           Government Schemes
@@ -128,9 +170,9 @@ export default function Schemes() {
           {tabs.map((tab) => (
             <Button
               key={tab.id}
-              variant={selectedTab === tab.id ? "default" : "secondary"}
+              variant={selectedTab === tab.id ? "default" : "outline"}
               onClick={() => setSelectedTab(tab.id)}
-              className="whitespace-nowrap"
+              className={`whitespace-nowrap ${selectedTab === tab.id ? 'bg-green-700 hover:bg-green-800 text-white' : 'bg-white'}`}
               data-testid={`tab-${tab.id}`}
             >
               {tab.label}
@@ -142,57 +184,62 @@ export default function Schemes() {
         <div className="space-y-4">
           {filteredSchemes.map((scheme: any) => {
             const userScheme = getUserScheme(scheme.id);
-            const progress = getSchemeProgress(scheme, userScheme);
+            const progress = getSchemeProgress(userScheme);
             
             return (
-              <Card key={scheme.id} className="scheme-card" data-testid={`scheme-card-${scheme.id}`}>
+              <Card key={scheme.id} className="scheme-card border-none shadow-md overflow-hidden" data-testid={`scheme-card-${scheme.id}`}>
+                {/* Decorative top border */}
+                <div className="h-2 w-full bg-gradient-to-r from-orange-400 to-green-500"></div>
+                
                 <CardContent className="p-4">
                   <div className="flex justify-between items-start mb-3">
                     <div>
-                      <h4 className="font-semibold text-lg" data-testid={`scheme-name-${scheme.id}`}>
+                      <h4 className="font-bold text-lg text-slate-800" data-testid={`scheme-name-${scheme.id}`}>
                         {scheme.name}
                       </h4>
-                      <p className="text-sm text-muted-foreground">{scheme.category}</p>
+                      <p className="text-xs font-semibold text-green-700 tracking-wider uppercase mt-1">{scheme.category}</p>
                     </div>
-                    {getStatusBadge(scheme, userScheme)}
+                    {getStatusBadge(userScheme)}
                   </div>
                   
-                  <p className="text-sm text-muted-foreground mb-4" data-testid={`scheme-description-${scheme.id}`}>
+                  <p className="text-sm text-slate-600 mb-4 leading-relaxed" data-testid={`scheme-description-${scheme.id}`}>
                     {scheme.description}
                   </p>
                   
-                  <div className="mb-4">
-                    <p className="font-medium text-sm mb-2">Benefits:</p>
-                    <p className="text-sm text-muted-foreground">{scheme.benefits}</p>
+                  <div className="mb-4 bg-orange-50 p-3 rounded-lg border border-orange-100">
+                    <p className="font-semibold text-sm mb-1 flex items-center text-orange-800">
+                      <Star className="h-4 w-4 mr-2" /> Benefits
+                    </p>
+                    <p className="text-sm text-orange-700">{scheme.benefits}</p>
                   </div>
                   
                   {userScheme?.status === 'in_progress' && (
                     <>
                       <div className="mb-4">
-                        <div className="flex justify-between text-sm mb-2">
-                          <span>Application Progress</span>
-                          <span data-testid={`scheme-progress-${scheme.id}`}>
-                            {Math.floor(progress / (100 / scheme.applicationSteps.length))} of {scheme.applicationSteps.length} steps completed
+                        <div className="flex justify-between text-sm mb-2 font-medium">
+                          <span className="text-slate-700">Application Progress</span>
+                          <span className="text-orange-600" data-testid={`scheme-progress-${scheme.id}`}>
+                            Step 1 of {scheme.applicationSteps.length}
                           </span>
                         </div>
-                        <Progress value={progress} className="mb-4" />
+                        <Progress value={progress} className="mb-4 h-2 bg-slate-200" />
                       </div>
                       
                       <div className="space-y-2 mb-4">
                         {scheme.applicationSteps.map((step: string, index: number) => {
-                          const isCompleted = index < Math.floor(progress / (100 / scheme.applicationSteps.length));
-                          const isCurrent = index === Math.floor(progress / (100 / scheme.applicationSteps.length));
+                          const isCompleted = index === 0; // Fake progress for demo
+                          const isCurrent = index === 1;
                           
                           return (
-                            <div key={index} className="flex items-center text-sm" data-testid={`scheme-step-${index}`}>
+                            <div key={index} className="flex items-center text-sm p-2 rounded bg-slate-50" data-testid={`scheme-step-${index}`}>
                               {isCompleted ? (
-                                <CheckCircle className="text-success mr-2 h-4 w-4" />
+                                <CheckCircle className="text-green-600 mr-3 h-5 w-5" />
                               ) : isCurrent ? (
-                                <Clock className="text-accent mr-2 h-4 w-4" />
+                                <Clock className="text-orange-500 mr-3 h-5 w-5" />
                               ) : (
-                                <Circle className="text-muted-foreground mr-2 h-4 w-4" />
+                                <Circle className="text-slate-300 mr-3 h-5 w-5" />
                               )}
-                              <span className={`${isCompleted ? 'line-through text-muted-foreground' : isCurrent ? 'font-medium text-accent' : ''}`}>
+                              <span className={`${isCompleted ? 'line-through text-slate-400' : isCurrent ? 'font-semibold text-orange-700' : 'text-slate-600'}`}>
                                 {step}
                               </span>
                             </div>
@@ -202,15 +249,11 @@ export default function Schemes() {
                     </>
                   )}
                   
-                  <div className="flex justify-between items-center">
-                    <div className="flex space-x-4 text-sm">
-                      <span className="flex items-center" data-testid={`scheme-coin-reward-${scheme.id}`}>
-                        <Coins className="text-accent mr-1 h-4 w-4" />
-                        200 coins reward
-                      </span>
-                      <span className="flex items-center">
-                        <Tag className="text-primary mr-1 h-4 w-4" />
-                        Scheme Certified Badge
+                  <div className="flex justify-between items-center mt-6 pt-4 border-t border-slate-100">
+                    <div className="flex space-x-4 text-sm font-medium">
+                      <span className="flex items-center text-orange-600" data-testid={`scheme-coin-reward-${scheme.id}`}>
+                        <Coins className="mr-1 h-4 w-4" />
+                        200 Coins
                       </span>
                     </div>
                     
@@ -219,24 +262,24 @@ export default function Schemes() {
                         <Button
                           onClick={() => applyForSchemeMutation.mutate(scheme.id)}
                           disabled={applyForSchemeMutation.isPending}
-                          className="bg-primary text-primary-foreground"
+                          className="bg-green-700 text-white hover:bg-green-800 shadow-sm"
                           data-testid={`button-start-application-${scheme.id}`}
                         >
                           Start Application
                         </Button>
                       ) : userScheme.status === 'approved' ? (
-                        <Button disabled className="bg-success text-success-foreground">
+                        <Button disabled className="bg-green-50 text-green-700 border-none">
                           Approved ✓
                         </Button>
                       ) : userScheme.status === 'in_progress' ? (
                         <Button
-                          className="bg-accent text-accent-foreground"
+                          className="bg-orange-100 text-orange-800 hover:bg-orange-200 border-none shadow-sm"
                           data-testid={`button-continue-application-${scheme.id}`}
                         >
                           Continue Quest
                         </Button>
                       ) : (
-                        <Button disabled className="bg-muted text-muted-foreground">
+                        <Button disabled className="bg-slate-100 text-slate-500 border-none">
                           Processing...
                         </Button>
                       )}
@@ -248,13 +291,13 @@ export default function Schemes() {
           })}
           
           {filteredSchemes.length === 0 && (
-            <div className="text-center py-12">
-              <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground mb-2">No schemes found</p>
-              <p className="text-sm text-muted-foreground">
+            <div className="text-center py-12 bg-white rounded-xl shadow-sm border border-slate-100">
+              <FileText className="mx-auto h-12 w-12 text-slate-300 mb-4" />
+              <p className="text-slate-600 font-medium mb-1">No schemes found</p>
+              <p className="text-sm text-slate-500">
                 {selectedTab === "available" 
-                  ? "All available schemes have been applied for" 
-                  : `No schemes in ${selectedTab.replace('_', ' ')} status`
+                  ? "You have applied for all available schemes!" 
+                  : `No schemes currently in ${selectedTab.replace('_', ' ')} status.`
                 }
               </p>
             </div>
@@ -262,36 +305,36 @@ export default function Schemes() {
         </div>
 
         {/* Help & Support */}
-        <Card data-testid="help-support-card">
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <MessageCircle className="text-primary mr-2 h-5 w-5" />
-              Need Help?
+        <Card className="border-none shadow-sm bg-blue-50/50" data-testid="help-support-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center text-lg text-blue-900">
+              <MessageCircle className="text-blue-600 mr-2 h-5 w-5" />
+              Need Application Help?
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <Button 
                 variant="outline" 
-                className="flex items-center p-3 h-auto justify-start"
+                className="flex items-center p-3 h-auto justify-start bg-white border-blue-100 hover:bg-blue-50"
                 data-testid="button-call-support"
               >
-                <Phone className="text-success mr-3 h-5 w-5" />
+                <Phone className="text-green-600 mr-3 h-5 w-5" />
                 <div className="text-left">
-                  <p className="font-medium">Call Support</p>
-                  <p className="text-xs text-muted-foreground">1800-XXX-XXXX</p>
+                  <p className="font-semibold text-slate-800">Call Support</p>
+                  <p className="text-xs text-slate-500">1800-180-1551 (Kisan Call Center)</p>
                 </div>
               </Button>
               
               <Button 
                 variant="outline" 
-                className="flex items-center p-3 h-auto justify-start"
+                className="flex items-center p-3 h-auto justify-start bg-white border-blue-100 hover:bg-blue-50"
                 data-testid="button-chat-support"
               >
-                <MessageCircle className="text-primary mr-3 h-5 w-5" />
+                <MessageCircle className="text-blue-600 mr-3 h-5 w-5" />
                 <div className="text-left">
-                  <p className="font-medium">Chat Support</p>
-                  <p className="text-xs text-muted-foreground">Get instant help</p>
+                  <p className="font-semibold text-slate-800">Chat with KrishiBot</p>
+                  <p className="text-xs text-slate-500">Get instant AI assistance</p>
                 </div>
               </Button>
             </div>

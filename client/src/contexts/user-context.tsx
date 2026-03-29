@@ -1,16 +1,20 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User, Farm, UserProgress } from '@shared/schema';
+import { auth, db } from '../firebaseConfig'; // 👈 Import our new database
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore'; // 👈 Import Firestore tools
 
 interface UserContextType {
   user: User | null;
   farm: Farm | null;
   progress: UserProgress | null;
   language: string;
+  isLoading: boolean;
   setUser: (user: User | null) => void;
   setFarm: (farm: Farm | null) => void;
   setProgress: (progress: UserProgress | null) => void;
   setLanguage: (language: string) => void;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -19,55 +23,77 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [farm, setFarm] = useState<Farm | null>(null);
   const [progress, setProgress] = useState<UserProgress | null>(null);
-  const [language, setLanguage] = useState('hi');
+  const [language, setLanguage] = useState('en');
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Load user data from localStorage on mount
+  // --- REAL CLOUD DATA CONNECTION ---
   useEffect(() => {
-    const savedUser = localStorage.getItem('krishigrow_user');
-    const savedFarm = localStorage.getItem('krishigrow_farm');
-    const savedProgress = localStorage.getItem('krishigrow_progress');
-    const savedLanguage = localStorage.getItem('krishigrow_language');
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        // 1. Set the basic user identity
+        setUser({
+          id: firebaseUser.uid as any, 
+          username: firebaseUser.email?.split('@')[0] || 'Farmer',
+          email: firebaseUser.email || '',
+          name: firebaseUser.displayName || 'Farmer',
+          password: '', 
+        } as User);
 
-    if (savedUser) setUser(JSON.parse(savedUser));
-    if (savedFarm) setFarm(JSON.parse(savedFarm));
-    if (savedProgress) setProgress(JSON.parse(savedProgress));
-    if (savedLanguage) setLanguage(savedLanguage);
+        // 2. Fetch their actual Farm and Progress from Firestore!
+        try {
+          const farmDoc = await getDoc(doc(db, "farms", firebaseUser.uid));
+          const progressDoc = await getDoc(doc(db, "progress", firebaseUser.uid));
+
+          if (farmDoc.exists()) {
+            setFarm(farmDoc.data() as Farm);
+          } else {
+            setFarm(null); // No farm found = Needs Onboarding
+          }
+
+          if (progressDoc.exists()) {
+            setProgress(progressDoc.data() as UserProgress);
+          } else {
+            setProgress(null);
+          }
+        } catch (error) {
+          console.error("Error fetching cloud data:", error);
+        }
+
+      } else {
+        // Logged out state
+        setUser(null);
+        setFarm(null);
+        setProgress(null);
+      }
+      
+      setIsLoading(false); // Done checking the cloud!
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  // Save user data to localStorage when it changes
+  // Language preference can still safely live in local storage
   useEffect(() => {
-    if (user) {
-      localStorage.setItem('krishigrow_user', JSON.stringify(user));
-    } else {
-      localStorage.removeItem('krishigrow_user');
-    }
-  }, [user]);
-
-  useEffect(() => {
-    if (farm) {
-      localStorage.setItem('krishigrow_farm', JSON.stringify(farm));
-    } else {
-      localStorage.removeItem('krishigrow_farm');
-    }
-  }, [farm]);
-
-  useEffect(() => {
-    if (progress) {
-      localStorage.setItem('krishigrow_progress', JSON.stringify(progress));
-    } else {
-      localStorage.removeItem('krishigrow_progress');
-    }
-  }, [progress]);
+    const savedLanguage = localStorage.getItem('krishigrow_language');
+    if (savedLanguage) setLanguage(savedLanguage);
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('krishigrow_language', language);
   }, [language]);
 
-  const logout = () => {
-    setUser(null);
-    setFarm(null);
-    setProgress(null);
-    localStorage.clear();
+  const logout = async () => {
+    setIsLoading(true);
+    try {
+      await signOut(auth);
+      setUser(null);
+      setFarm(null);
+      setProgress(null);
+    } catch (error) {
+      console.error("Error logging out:", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -77,6 +103,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         farm,
         progress,
         language,
+        isLoading,
         setUser,
         setFarm,
         setProgress,
